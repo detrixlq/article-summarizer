@@ -6,6 +6,7 @@ import utils.citation_analyzer as CitationAnalyzer
 from utils.file_parser import PDFParser, DOCXParser
 from database.history_db import HistoryDB
 from config import Config
+import json
 
 # Create a blueprint for the summarize route
 summarize_bp = Blueprint('summarize', __name__)
@@ -38,11 +39,12 @@ def summarize():
     # Generate summary
     summary = summarizer.summarize(text)
     # summary = text
-    # summary = CitationAnalyzer.extract_citations(text)
+    # summary = CitationAnalyzer.analyze_citations(text)
     
-
+    citations = CitationAnalyzer.analyze_citations(text)
+    citations_json = json.dumps(citations)
     # Save the summary to the database
-    history_db.save_summary(ip_address, text, summary)
+    history_db.save_summary(ip_address, text, summary, citations_json)
 
     return jsonify({"summary": summary})
 
@@ -63,3 +65,23 @@ def clear_history():
         return jsonify({"message": "History cleared successfully"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@summarize_bp.route('/citations', methods=['POST'])
+def citations():
+    text = request.form.get("text", None)
+
+    if 'file' in request.files:
+        file = request.files['file']
+        if file.filename.endswith('.pdf'):
+            result = CitationAnalyzer.analyze_citations(file, is_pdf=True)
+            return jsonify(result)
+        elif file.filename.endswith('.docx'):
+            text = DOCXParser.extract_text_from_docx(file)
+        else:
+            return jsonify({"error": "Unsupported file type"}), 400
+
+    if not text:
+        return jsonify({"error": "No text or file provided."}), 400
+
+    result = CitationAnalyzer.analyze_citations(text)
+    return jsonify(result)

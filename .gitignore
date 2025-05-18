@@ -1,0 +1,4 @@
+/.venv
+/.vscode
+/backend/history.db
+/model

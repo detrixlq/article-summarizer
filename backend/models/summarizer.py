@@ -14,8 +14,8 @@ class TextSummarizer:
             max_length=200,
             min_length=50,
             length_penalty=1.5,
-            num_beams=4,
-            early_stopping=True,
+            num_beams=6,
+            early_stopping=False,
             no_repeat_ngram_size=3
         )
         summary = self.tokenizer.decode(summary_ids[0], skip_special_tokens=True)

@@ -1,20 +1,19 @@
 import re
-import json
 import logging
 from collections import Counter
 import pdfplumber
-
 
 try:
     from PyPDF2 import PdfReader
 except ImportError:
     PdfReader = None
 
-# Подавление предупреждений pdfminer
+# Setup logging
 logging.getLogger("pdfminer").setLevel(logging.ERROR)
-
-# Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+# --- PDF Text Extraction ---
 
 def extract_text_from_pdf_plumber(pdf_path):
     try:
@@ -57,40 +56,83 @@ def extract_text(input_data, is_pdf=False):
         return text
     return f"Error: Unable to extract text from PDF"
 
+
+# --- Citation Extraction ---
+
 def extract_citations(text):
-    ref_pattern = r'\[\d+\]|\[\d+-\d+\]|\[\d+\s*,\s*\d+\]|\[\d+\s*;\s*\d+\]|\[\d+\s*,\s*\d+\s*,\s*\d+\]'
-    author_pattern = (
-        r'\([A-Za-z\s]+et al\., \d{4}\)|[A-Za-z\s]+et al\. \(\d{4}\)'
-        r'|\([A-Za-z\s]+, \d{4}\)|[A-Za-z\s]+\(\d{4}\)'
-        r'|\([A-Za-z\s]+ and [A-Za-z\s]+, \d{4}\)|[A-Za-z\s]+ and [A-Za-z\s]+\(\d{4}\)'
-        r'|\([A-Za-z\s]+et al\., \d{4}, \d{4}\)|[A-Za-z\s]+et al\. \(\d{4}, \d{4}\)'
-        r'|\([A-Za-z\s]+et al\., \d{4};\s*\d{4}\)|[A-Za-z\s]+et al\. \(\d{4};\s*\d{4}\)'
-        r'|\([A-Za-z\s]+, p\. \d+\)|[A-Za-z\s]+\(p\. \d+\)'
-        r'|\([A-Za-z\s]+, \d{4}, p\. \d+\)|[A-Za-z\s]+\(\d{4}, p\. \d+\)'
-        r'|[A-Za-z\s]+et al\. \d{4}'
-    )
+    # Find references like [9], [9, 15], [9-12], etc.
+    ref_pattern = r'\[\d+(?:[\-,;]\s*\d+)*\]'
     
+    # Match author citations like "Sarlis et al. (2020)", "Smith and Jones (2015)"
+    author_pattern = r'[A-Z][a-zA-Z]+(?: et al\.| and [A-Z][a-zA-Z]+)? \(\d{4}\)'
+
     refs = re.findall(ref_pattern, text)
     authors = re.findall(author_pattern, text)
     
-    logging.info(f"Found {len(refs)} references and {len(authors)} author citations")
+    logging.info(f"Found {len(refs)} numeric references and {len(authors)} author citations")
     return refs, authors
+
+
+# --- Bibliography Parsing ---
+
+def extract_bibliography_section(text):
+    bib_markers = ['References', 'BIBLIOGRAPHY']
+    for marker in bib_markers:
+        if marker in text:
+            return text.split(marker, 1)[1]
+    return ""
+
+def parse_bibliography_mapping(bib_text):
+    bib_mapping = {}
+    bib_entries = re.findall(r'\[(\d+)\]\s+(.+?)(?=\n\[|\Z)', bib_text, flags=re.DOTALL)
+    
+    for number, entry in bib_entries:
+        author_year_match = re.search(r'([A-Z][a-zA-Z]+(?: et al\.| and [A-Z][a-zA-Z]+)?)?.*?(\d{4})', entry)
+        if author_year_match:
+            author = author_year_match.group(1) or "Unknown"
+            year = author_year_match.group(2)
+            citation = f"{author} ({year})"
+            bib_mapping[number] = citation
+    logging.info(f"Parsed {len(bib_mapping)} references from bibliography")
+    return bib_mapping
+
+def link_refs_to_authors(in_text_refs, bib_mapping):
+    linked = []
+    for ref in in_text_refs:
+        numbers = re.findall(r'\d+', ref)
+        for number in numbers:
+            citation = bib_mapping.get(number)
+            if citation:
+                linked.append(citation)
+    return Counter(linked)
+
+
+# --- Counting and Formatting ---
 
 def count_citations(refs, authors):
     ref_counts = Counter(refs)
     author_counts = Counter(authors)
     return ref_counts, author_counts
 
-def format_results(ref_counts, author_counts):
+def format_results(ref_counts, author_counts, linked_refs=None):
     ref_data = [{"Reference": ref, "Frequency": freq} for ref, freq in ref_counts.items()]
     author_data = [{"Author Citation": author, "Frequency": freq} for author, freq in author_counts.items()]
     
-    return {
+    result = {
         "references": sorted(ref_data, key=lambda x: x["Frequency"], reverse=True),
         "author_citations": sorted(author_data, key=lambda x: x["Frequency"], reverse=True),
         "total_references": len(ref_counts),
         "total_author_citations": len(author_counts)
     }
+
+    if linked_refs:
+        linked_data = [{"Citation": k, "Frequency": v} for k, v in linked_refs.items()]
+        result["linked_numbered_citations"] = sorted(linked_data, key=lambda x: x["Frequency"], reverse=True)
+
+    return result
+
+
+# --- Main Entry Point ---
 
 def analyze_citations(input_data, is_pdf=False, return_raw_text=False):
     text = extract_text(input_data, is_pdf)
@@ -100,9 +142,14 @@ def analyze_citations(input_data, is_pdf=False, return_raw_text=False):
     
     refs, authors = extract_citations(text)
     ref_counts, author_counts = count_citations(refs, authors)
-    results = format_results(ref_counts, author_counts)
+    
+    bib_text = extract_bibliography_section(text)
+    bib_mapping = parse_bibliography_mapping(bib_text)
+    linked_refs = link_refs_to_authors(refs, bib_mapping)
+
+    results = format_results(ref_counts, author_counts, linked_refs)
     
     if return_raw_text:
         results["raw_text"] = text[:1000] + "..." if len(text) > 1000 else text
-    
+
     return results

@@ -30,19 +30,22 @@ class NERProcessor:
 
             if label.startswith("B-"):
                 if current_token:
-                    merged_tokens.append({"term": current_token, "type": current_label[2:]})
+                    merged_tokens.append({"term": current_token.strip(), "type": current_label[2:]})
                 current_token = token
                 current_label = label
             elif label.startswith("I-") and current_label and label[2:] == current_label[2:]:
-                current_token += token.replace("##", "")
+                if token.startswith("##"):
+                    current_token += token[2:]
+                else:
+                    current_token += " " + token
             else:
                 if current_token:
-                    merged_tokens.append({"term": current_token, "type": current_label[2:]})
+                    merged_tokens.append({"term": current_token.strip(), "type": current_label[2:]})
                 current_token = token
                 current_label = label
 
         if current_token:
-            merged_tokens.append({"term": current_token, "type": current_label[2:]})
+            merged_tokens.append({"term": current_token.strip(), "type": current_label[2:]})
 
         # Маппинг типов
         label_map = {
@@ -59,6 +62,7 @@ class NERProcessor:
         ]
 
         return remapped_entities
+
 
     def _improve_types(self, entities):
         """Улучшает типы (например, Canada → LOCATION)"""

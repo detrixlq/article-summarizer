@@ -15,3 +15,4 @@ class Config:
     "Statistics" : "../model/model_stat"
 }
     NER_PATH = "../model/ner_model"
+    SECTIONSUM_PATH = "../model/section_sum_model"

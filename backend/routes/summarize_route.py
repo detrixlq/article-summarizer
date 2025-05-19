@@ -7,6 +7,7 @@ from utils.file_parser import PDFParser, DOCXParser
 from database.history_db import HistoryDB
 from config import Config
 from models.NERProcessor import NERProcessor
+from models.sectionsum import load_local_summarizer, extract_text_from_pdf, generate_section_summaries
 import json
 
 # Create a blueprint for the summarize route
@@ -14,6 +15,7 @@ summarize_bp = Blueprint('summarize', __name__)
 
 # Initialize the summarizer and history database
 history_db = HistoryDB()
+# sectionsummarizer = load_local_summarizer()
 
 @summarize_bp.route('/summarize', methods=['POST'])
 def summarize():
@@ -75,6 +77,16 @@ def clear_history():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@summarize_bp.route('/history/<int:item_id>', methods=['DELETE'])
+def delete_history_item(item_id):
+    ip_address = request.remote_addr
+    try:
+        history_db.delete_history_item(ip_address, item_id)
+        return jsonify({"message": f"History item {item_id} deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @summarize_bp.route('/citations', methods=['POST'])
 def citations():
     text = request.form.get("text", None)
@@ -99,21 +111,6 @@ ner_processor = NERProcessor(Config.NER_PATH)
 
 @summarize_bp.route("/extract", methods=["POST"])
 def extract_entities():
-    """
-    Роут для извлечения сущностей из текста
-    
-    Пример запроса:
-    {
-        "text": "The Transformer model was developed by Geoffrey Hinton at the University of Toronto."
-    }
-    
-    Ответ:
-    [
-      {"term": "Transformer", "type": "METHOD"},
-      {"term": "Geoffrey Hinton", "type": "PERSON"},
-      {"term": "University of Toronto", "type": "LOCATION"}
-    ]
-    """
     data = request.get_json()
 
     if not data or "text" not in data:

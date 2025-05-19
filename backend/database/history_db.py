@@ -64,3 +64,10 @@ class HistoryDB:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM history WHERE ip_address = ?", (ip_address,))
             conn.commit()
+
+    def delete_history_item(self, ip_address, item_id):
+        with self.conn:
+            self.conn.execute(
+                "DELETE FROM history WHERE ip_address = ? AND id = ?",
+                (ip_address, item_id)
+            )

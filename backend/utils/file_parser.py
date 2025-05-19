@@ -57,21 +57,42 @@ class TextCleaner:
         cleaned_text = "\n\n".join(cleaned_sections).strip()
         return cleaned_text
 
+import re
+import pdfplumber
+
 class PDFParser:
     @staticmethod
     def extract_text_from_pdf(file):
         text = ""
         with pdfplumber.open(file) as pdf:
             for page in pdf.pages:
-                text += page.extract_text() + "\n"
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
         return PDFParser.clean_pdf_text(text)
-    
+
     @staticmethod
     def clean_pdf_text(text):
-        # Fix hyphenated words broken across lines
-        text = text.replace("-\n", "")  # merges hyphenated line breaks
-        text = text.replace("\n", " ")  # replace newlines with spaces
-        return text
+        # Merge hyphenated words and unify whitespace
+        text = text.replace("-\n", "")  # Fix hyphenated line breaks
+        text = text.replace("\n", " ")  # Replace all newlines with spaces
+
+        # Remove excessive whitespace
+        text = re.sub(r"\s{2,}", " ", text)
+
+        # Remove common boilerplate sections before main content
+        # Look for the first meaningful section, e.g., Introduction
+        intro_match = re.search(r"(1\.\s*INTRODUCTION|INTRODUCTION)", text, re.IGNORECASE)
+        if intro_match:
+            text = text[intro_match.start():]
+
+        # Optionally remove contents/TOC if detected before intro
+        toc_match = re.search(r"TABLE OF CONTENTS", text, re.IGNORECASE)
+        if toc_match and intro_match and toc_match.start() < intro_match.start():
+            text = text[:toc_match.start()] + text[intro_match.start():]
+
+        return text.strip()
+
 
 
 class DOCXParser:

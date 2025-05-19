@@ -18,7 +18,7 @@ function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [themeTarget, setThemeTarget] = useState(null);
   const [entities, setEntities] = useState([]);
-  const [copied, setCopied] = useState(false);
+  // const [copied, setCopied] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('darkMode') === 'true';
   });
@@ -95,7 +95,7 @@ function App() {
   // Copy response text to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(responseText).then(() => {
-      alert('Text copied to clipboard!');
+      
     });
   };
 
@@ -135,6 +135,17 @@ function App() {
       alert('Failed to clear history. Please try again.');
     }
   };
+
+  const deleteHistoryItem = async (itemId) => {
+  try {
+    const res = await fetch(`http://localhost:5000/history/${itemId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error();
+    setHistory(history.filter(item => item.id !== itemId));
+  } catch {
+    alert('Failed to delete item. Please try again.');
+  }
+};
+
 
   const handleToggleDarkMode = (e) => {
     const button = e.currentTarget.getBoundingClientRect();
@@ -231,6 +242,17 @@ function App() {
                     setIsSidebarOpen(false);
                   }}
                 >
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation(); // prevent triggering onSelectHistory
+                      deleteHistoryItem(item.id);
+                    }}
+                    className="absolute top-1 right-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Delete this item"
+                  >
+                    ×
+                  </button>
                   <strong>Original Text:</strong>{' '}
                   <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2">
                     {truncateText(item.original_text)}
@@ -291,7 +313,7 @@ function App() {
             disabled={loading}
             className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
-            {loading ? 'Processing...' : 'Process Text'}
+            {loading ? 'Processing...' : 'Summarize'}
           </button>
         </form>
 

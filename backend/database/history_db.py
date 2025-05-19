@@ -21,18 +21,19 @@ class HistoryDB:
                     original_text TEXT NOT NULL,
                     summary TEXT NOT NULL,
                     citations TEXT,
+                    entities TEXT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.commit()
 
-    def save_summary(self, ip_address, original_text, summary, citations=None):
+    def save_summary(self, ip_address, original_text, summary, citations=None, entities=None):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO history (ip_address, original_text, summary, citations, timestamp)
-                VALUES (?, ?, ?, ?, ?)
-            """, (ip_address, original_text, summary, citations, datetime.now()))
+                INSERT INTO history (ip_address, original_text, summary, citations, entities, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (ip_address, original_text, summary, citations, entities, datetime.now()))
             conn.commit()
 
 
@@ -40,7 +41,7 @@ class HistoryDB:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT original_text, summary, citations, timestamp
+                SELECT original_text, summary, citations, entities, timestamp
                 FROM history
                 WHERE ip_address = ?
                 ORDER BY timestamp DESC
@@ -51,7 +52,8 @@ class HistoryDB:
                     "original_text": row[0],
                     "summary": row[1],
                     "citations": row[2],
-                    "timestamp": row[3],
+                    "entities": row[3],
+                    "timestamp": row[4],
                 }
                 for row in rows
             ]

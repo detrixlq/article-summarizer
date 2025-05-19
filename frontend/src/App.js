@@ -1,7 +1,7 @@
 // App.js
 
 import React, { useState, useEffect } from 'react';
-import { summarizeText, getCitations, getHistory } from './api'; // Import API functions
+import { summarizeText, getCitations, getHistory, extractEntities} from './api'; // Import API functions
 import { SunIcon, MoonIcon } from '@heroicons/react/24/solid';
 import ModelDropdown from "./components/ModelDropdown";
 
@@ -17,10 +17,18 @@ function App() {
   const [citationData, setCitationData] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [themeTarget, setThemeTarget] = useState(null);
+  const [entities, setEntities] = useState([]);
+  const [copied, setCopied] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('darkMode') === 'true';
   });
-  const [selectedModel, setSelectedModel] = useState("Computer Science");
+  const [selectedModel, setSelectedModel] = useState(
+  localStorage.getItem('selectedModel') || 'Computer Science'
+);
+
+  useEffect(() => {
+  localStorage.setItem('selectedModel', selectedModel);
+}, [selectedModel]);
 
   useEffect(() => {
     if (darkMode) {
@@ -50,31 +58,39 @@ function App() {
 
   // Submit form to process text or file
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setCitationData(null); // Clear previous results
+  e.preventDefault();
+  setLoading(true);
+  setCitationData(null); // Clear previous results
+  setEntities([]);
 
-    const formData = new FormData();
-    if (inputText.trim()) {
-      formData.append('text', inputText);
-    } else if (file) {
-      formData.append('file', file);
-    }
+  const formData = new FormData();
+  if (inputText.trim()) {
+    formData.append('text', inputText);
+  } else if (file) {
+    formData.append('file', file);
+  }
 
-    try {
-      const [summary, citations] = await Promise.all([
-        summarizeText(formData),
-        getCitations(formData),
-      ]);
+  formData.append('model', selectedModel); // Add selected model to request
 
-      setResponseText(summary);
-      setCitationData(citations);
-    } catch (error) {
-      alert('An error occurred while processing the request. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    const [summary, citations] = await Promise.all([
+      summarizeText(formData),
+      getCitations(formData),
+    ]);
+
+    setResponseText(summary);
+    setCitationData(citations);
+
+    const rawText = inputText.trim() || (await file.text()); // Read file if necessary
+    const foundEntities = await extractEntities(rawText);
+    setEntities(foundEntities);
+  } catch (error) {
+    alert('An error occurred while processing the request. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Copy response text to clipboard
   const copyToClipboard = () => {
@@ -138,12 +154,16 @@ function App() {
     }, 700); // Duration matches animation
   };
 
+  function refreshPage() {
+    window.location.reload(false);
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 dark:text-gray-100 transition-colors">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700 z-50 fixed top-0 left-0 w-full">
         <div className="max-w-screen-xl ml-4 px-4 py-3 flex items-center ">
-          <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">Summarizer</h1>
+          <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer" onClick={refreshPage}>Summarizer</h1>
           
           <ModelDropdown
           selectedModel={selectedModel}
@@ -207,6 +227,7 @@ function App() {
                     setResponseText(item.summary);
                     setSelectedHistory(item);
                     setCitationData(item.citations ? JSON.parse(item.citations) : []);
+                    setEntities(item.entities ? JSON.parse(item.entities) : []);
                     setIsSidebarOpen(false);
                   }}
                 >
@@ -289,54 +310,72 @@ function App() {
                 onClick={copyToClipboard}
                 className="absolute top-2 right-4 bg-indigo-600 text-white px-3 py-1 rounded-md text-sm opacity-50 hover:opacity-100 transition-opacity duration-300 "
               >
-                Copy
+                Copy 
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Citation Sidebar */}
       {citationData && (
-        <aside
-          className="fixed top-14 right-0 h-[calc(100%-2rem)] w-80 bg-white dark:bg-gray-900 shadow-lg border-l border-gray-200 dark:border-gray-700 z-40 overflow-y-auto p-6"
-        >
-          <h2 className="text-xl font-bold mb-4 text-indigo-600 dark:text-indigo-400">Citation Analysis</h2>
-          <div className="space-y-4 text-sm text-gray-800 dark:text-gray-200">
-            <div>
-              <p><span className="font-semibold">Total References:</span> {citationData.total_references}</p>
-              <p><span className="font-semibold">Total Author Citations:</span> {citationData.total_author_citations}</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top References</h3>
-              <ul className="list-disc list-inside space-y-1">
-                {citationData.references.slice(0, 5).map((ref, index) => (
-                  <li key={index}>
-                    <span className="text-gray-700 dark:text-gray-200">{ref.Reference}</span>{' '}
-                    <span className="text-gray-500 dark:text-gray-400 text-xs">({ref.Frequency})</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top Author Citations</h3>
-              <ul className="list-disc list-inside space-y-1">
-                {citationData.author_citations.slice(0, 5).map((auth, index) => (
-                  <li key={index}>
-                    <span className="text-gray-700 dark:text-gray-200">{auth['Author Citation']}</span>{' '}
-                    <span className="text-gray-500 dark:text-gray-400 text-xs">({auth.Frequency})</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </aside>
+  <aside
+    className="fixed top-14 right-0 h-[calc(100%-2rem)] w-80 bg-white dark:bg-gray-900 shadow-lg border-l border-gray-200 dark:border-gray-700 z-40 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
+  >
+    <h2 className="text-xl font-bold mb-4 text-indigo-600 dark:text-indigo-400">Citation Analysis</h2>
+    <div className="space-y-4 text-sm text-gray-800 dark:text-gray-200">
+      <div>
+        <p><span className="font-semibold">Total References:</span> {citationData.total_references}</p>
+        <p><span className="font-semibold">Total Author Citations:</span> {citationData.total_author_citations}</p>
+      </div>
+      <div>
+        <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top References</h3>
+        <ul className="list-disc list-inside space-y-1">
+          {citationData.references.slice(0, 5).map((ref, index) => (
+            <li key={index}>
+              <span className="text-gray-700 dark:text-gray-200">{ref.Reference}</span>{' '}
+              <span className="text-gray-500 dark:text-gray-400 text-xs">({ref.Frequency})</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top Author Citations</h3>
+        <ul className="list-disc list-inside space-y-1">
+          {citationData.author_citations.slice(0, 5).map((auth, index) => (
+            <li key={index}>
+              <span className="text-gray-700 dark:text-gray-200">{auth['Author Citation']}</span>{' '}
+              <span className="text-gray-500 dark:text-gray-400 text-xs">({auth.Frequency})</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* New Section: Extracted Key Terms */}
+      {entities && entities.length > 0 && (
+        <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
+          <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Key Terms</h3>
+          <ul className="flex flex-wrap gap-2 mb-3">
+            {entities.map((entity, index) => (
+              <li
+                key={index}
+                className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full text-xs text-gray-800 dark:text-gray-100"
+              >
+                {entity.term}{' '}
+                <span className="text-gray-500 dark:text-gray-400 text-[10px]">({entity.type})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
+    </div>
+  </aside>
+)}
+
 
       {/* Sidebar Toggle */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed bottom-4 left-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 z-50"
+        className="fixed flex bottom-4 left-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 z-50"
       >
         {isSidebarOpen ? 'Close History' : 'View History'}
       </button>

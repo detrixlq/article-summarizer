@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-const models = ["Computer Science", "Quantitative Biology"];
+const models = ["Computer Science", "Economics", "Electrical Engineering", "Mathematics", "Physics", "Quantitative Biology", "Quantitative Finance", "Statistics" ];
 
 export default function ModelDropdown({ selectedModel, setSelectedModel }) {
   const [isOpen, setIsOpen] = useState(false);

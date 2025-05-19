@@ -47,3 +47,24 @@ export const getCitations = async (formData) => {
 
   return await response.json();
 };
+
+export const extractEntities = async (text) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/extract`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    return await response.json(); // Expecting an array of { term, type }
+  } catch (error) {
+    console.error("Error extracting entities:", error);
+    return [];
+  }
+};

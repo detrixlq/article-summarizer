@@ -19,6 +19,8 @@ function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [themeTarget, setThemeTarget] = useState(null);
   const [entities, setEntities] = useState([]);
+  const [useSectional, setUseSectional] = useState(false);
+  const [sectionSummary, setSectionSummary] = useState(null);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('darkMode') === 'true';
   });
@@ -74,11 +76,19 @@ function App() {
 
   try {
     const [summary, citations] = await Promise.all([
-      summarizeText(formData),
+      summarizeText(formData, useSectional),
       getCitations(formData),
     ]);
 
-    setResponseText(summary);
+    
+
+    if (typeof summary === "string") {
+  setResponseText(summary);        // for regular summary
+  setSectionSummary(null);
+} else if (typeof summary === "object" && summary !== null) {
+  setSectionSummary(summary);  // for sectional summary
+  setResponseText("");
+}
     setCitationData(citations);
 
     const rawText = inputText.trim() || (await file.text()); // Read file if necessary
@@ -339,6 +349,20 @@ function App() {
     </div>
   </div>
 
+{/* Toggle Sectional Summary */}
+<div className="flex items-center space-x-3">
+  <input
+    type="checkbox"
+    id="sectional"
+    checked={useSectional}
+    onChange={() => setUseSectional(!useSectional)}
+    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+  />
+  <label htmlFor="sectional" className="text-sm text-gray-700 dark:text-gray-200">
+    Use Sectional Summary
+  </label>
+</div>
+
   {/* Submit */}
   <button
     type="submit"
@@ -375,6 +399,17 @@ function App() {
           </div>
         )}
       </div>
+
+        {sectionSummary && (
+  <div className="space-y-4">
+    {Object.entries(sectionSummary).map(([section, content]) => (
+      <div key={section} className="p-4 border rounded bg-white shadow">
+        <h3 className="text-lg font-semibold mb-2">{section}</h3>
+        <p className="whitespace-pre-wrap">{content}</p>
+      </div>
+    ))}
+  </div>
+)}
 
       {citationData && (
   <aside

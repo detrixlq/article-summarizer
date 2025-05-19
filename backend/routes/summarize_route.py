@@ -30,25 +30,22 @@ def summarize():
     print(f"[INFO] Using model: {model_name} ({model_path})")
     summarizer = TextSummarizer(model_path)
 
-    text = None  # Ensure `text` starts empty
-
-    # 🔹 PRIORITIZE FILE if uploaded
+    # Try to extract text from file first
+    text = None
     uploaded_file = request.files.get("file")
+
     if uploaded_file and uploaded_file.filename:
         if uploaded_file.filename.lower().endswith('.pdf'):
             try:
                 text = PDFParser.extract_text_from_pdf(uploaded_file)
-                print("[INFO] Extracted text from uploaded PDF.")
             except Exception as e:
                 return jsonify({"error": f"Failed to parse PDF: {str(e)}"}), 400
         else:
             return jsonify({"error": "Unsupported file type. Please upload a PDF file."}), 400
-    else:
-        # 🔸 FALLBACK: use text input only if no file provided
-        text_input = request.form.get("text", "").strip()
-        if text_input:
-            text = text_input
-            print("[INFO] Using text input.")
+
+    # Fallback to plain text if no file
+    if not text:
+        text = request.form.get("text", "").strip()
 
     if not text:
         return jsonify({"error": "No valid text or file provided."}), 400
@@ -72,7 +69,6 @@ def summarize():
         "citations": citations,
         "entities": entities
     })
-
 
 
 @summarize_bp.route('/history', methods=['GET'])
@@ -139,4 +135,54 @@ def extract_entities():
         return jsonify(entities)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@summarize_bp.route('/sectional_summary', methods=['POST'])
+def sectional_summary():
+    ip_address = request.remote_addr
+
+    # Get selected model
+    model_path = Config.SECTIONSUM_PATH
+
+    if not model_path:
+        return jsonify({"error": f"Model not supported."}), 400
+
+    print(f"[INFO] Using model: sectional summary model ({model_path})")
+
+    # Load full summarizer and section summarizer
+    section_summarizer = load_local_summarizer()
+
+    # Get text input or file
+    text = request.form.get("text", None)
+    if 'file' in request.files:
+        file = request.files['file']
+        if file.filename.endswith('.pdf'):
+            from utils.file_parser import PDFParser
+            text = PDFParser.extract_text_from_pdf(file)
+        else:
+            return jsonify({"error": "Unsupported file type. Please upload a PDF file."}), 400
+
+    if not text:
+        return jsonify({"error": "No text or file provided."}), 400
+
+    # 🔹 Section Summaries
+    section_summaries = generate_section_summaries(text, section_summarizer)
+
+    # 🔹 Citation Analysis
+    citations = CitationAnalyzer.analyze_citations(text)
+    citations_json = json.dumps(citations)
+
+    # 🔹 Named Entities
+    entities = ner_processor.extract_entities(text)
+    entities_json = json.dumps(entities)
+
+    # 🔹 Save to DB (we save all section summaries concatenated as one string)
+    full_section_summary_text = "\n\n".join([f"{k}: {v}" for k, v in section_summaries.items()])
+    history_db.save_summary(ip_address, text, full_section_summary_text, citations_json, entities_json)
+
+    return jsonify({
+        "section_summaries": section_summaries,
+        "citations": citations,
+        "entities": entities
+    })
+
     

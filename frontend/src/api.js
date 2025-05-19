@@ -1,13 +1,13 @@
 // api.js
-
 const API_BASE_URL = 'http://localhost:5000';
 
-export const summarizeText = async (formData) => {
+export const summarizeText = async (formData, useSectional) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/summarize`, {
-      method: 'POST',
-      body: formData,
-    });
+    const endpoint = useSectional ? '/sectional_summary' : '/summarize';
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    body: formData,
+  });
 
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);

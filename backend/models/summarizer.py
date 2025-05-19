@@ -11,7 +11,7 @@ class TextSummarizer:
         inputs = self.tokenizer(f"summarize: {text}", return_tensors="pt", max_length=512, truncation=True)
         summary_ids = self.model.generate(
             inputs["input_ids"],
-            max_length=200,
+            max_length=250,
             min_length=50,
             length_penalty=1.5,
             num_beams=6,

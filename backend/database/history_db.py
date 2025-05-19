@@ -20,40 +20,44 @@ class HistoryDB:
                     ip_address TEXT NOT NULL,
                     original_text TEXT NOT NULL,
                     summary TEXT NOT NULL,
+                    citations TEXT,
+                    entities TEXT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.commit()
 
-    def save_summary(self, ip_address, original_text, summary):
-        """
-        Saves a summary to the database.
-        """
+    def save_summary(self, ip_address, original_text, summary, citations=None, entities=None):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO history (ip_address, original_text, summary, timestamp)
-                VALUES (?, ?, ?, ?)
-            """, (ip_address, original_text, summary, datetime.now()))
+                INSERT INTO history (ip_address, original_text, summary, citations, entities, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (ip_address, original_text, summary, citations, entities, datetime.now()))
             conn.commit()
 
+
     def get_history_by_ip(self, ip_address):
-        """
-        Retrieves all summaries for a given IP address.
-        """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT original_text, summary, timestamp
+                SELECT original_text, summary, citations, entities, timestamp
                 FROM history
                 WHERE ip_address = ?
                 ORDER BY timestamp DESC
             """, (ip_address,))
             rows = cursor.fetchall()
             return [
-                {"original_text": row[0], "summary": row[1], "timestamp": row[2]}
+                {
+                    "original_text": row[0],
+                    "summary": row[1],
+                    "citations": row[2],
+                    "entities": row[3],
+                    "timestamp": row[4],
+                }
                 for row in rows
             ]
+
         
     def clear_history(self, ip_address):
         with sqlite3.connect(self.db_path) as conn:

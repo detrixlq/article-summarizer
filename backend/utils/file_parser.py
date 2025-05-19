@@ -1,7 +1,7 @@
 # utils/pdf_parser.py
 
 import re
-import PyPDF2
+import pdfplumber
 import docx
 
 class TextCleaner:
@@ -60,13 +60,18 @@ class TextCleaner:
 class PDFParser:
     @staticmethod
     def extract_text_from_pdf(file):
-        """
-        Extracts text from a PDF file and cleans it using TextCleaner.
-        """
-        pdf_reader = PyPDF2.PdfReader(file)
-        raw_text = ''.join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
-        cleaned_text = TextCleaner.clean_text(raw_text)
-        return cleaned_text
+        text = ""
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() + "\n"
+        return PDFParser.clean_pdf_text(text)
+    
+    @staticmethod
+    def clean_pdf_text(text):
+        # Fix hyphenated words broken across lines
+        text = text.replace("-\n", "")  # merges hyphenated line breaks
+        text = text.replace("\n", " ")  # replace newlines with spaces
+        return text
 
 
 class DOCXParser:

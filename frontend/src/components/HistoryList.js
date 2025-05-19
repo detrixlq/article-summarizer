@@ -1,44 +1,28 @@
-// src/components/HistoryList.js
+import React from 'react';
 
-import React, { useEffect, useState } from 'react';
-import { getHistory } from '../api';
-
-const HistoryList = () => {
-  const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const data = await getHistory();
-        setHistory(data.history);
-      } catch (error) {
-        console.error('Error fetching history:', error);
-      }
-    };
-
-    fetchHistory();
-  }, []);
-
-  return (
-    <div>
-      {history.length === 0 ? (
-        <p>No summaries found in history.</p>
-      ) : (
-        <ul>
-          {history.map((item, index) => (
-            <li key={index}>
-              <strong>Original Text:</strong> {item.original_text}
-              <br />
-              <strong>Summary:</strong> {item.summary}
-              <br />
-              <small>{new Date(item.timestamp).toLocaleString()}</small>
-              <hr />
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+const truncateText = (text) => {
+  if (!text) return '';
+  return `${text.split(/[.!?]/)[0]}...`;
 };
 
-export default HistoryList;
+export default function HistoryList({ history, onSelect, selected }) {
+  if (!history.length) return <p>No summaries found in history.</p>;
+
+  return (
+    <ul className="space-y-4">
+      {history.map((item, index) => (
+        <li
+          key={index}
+          className={`... ${selected === item ? 'bg-indigo-100 dark:bg-indigo-900' : ''}`}
+          onClick={() => onSelect(item)}
+        >
+          <strong>Original Text:</strong>
+          <span className="...">{truncateText(item.original_text)}</span>
+          <strong>Summary:</strong>
+          <span className="...">{truncateText(item.summary)}</span>
+          <small className="...">{new Date(item.timestamp).toLocaleString()}</small>
+        </li>
+      ))}
+    </ul>
+  );
+}

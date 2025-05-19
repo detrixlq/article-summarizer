@@ -1,14 +1,15 @@
 // App.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { summarizeText, getCitations, getHistory, extractEntities} from './api'; // Import API functions
 import { SunIcon, MoonIcon } from '@heroicons/react/24/solid';
 import ModelDropdown from "./components/ModelDropdown";
 
-
 function App() {
+  const fileInputRef = useRef(null);
   const [inputText, setInputText] = useState('');
   const [file, setFile] = useState(null);
+  const [copied, setCopied] = useState(false);
   const [responseText, setResponseText] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State for sidebar visibility
@@ -18,7 +19,6 @@ function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [themeTarget, setThemeTarget] = useState(null);
   const [entities, setEntities] = useState([]);
-  const [copied, setCopied] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('darkMode') === 'true';
   });
@@ -64,11 +64,11 @@ function App() {
   setEntities([]);
 
   const formData = new FormData();
-  if (inputText.trim()) {
-    formData.append('text', inputText);
-  } else if (file) {
-    formData.append('file', file);
-  }
+  if (file) {
+  formData.append("file", file);  // ✅ file takes priority
+} else {
+  formData.append("text", inputText.trim());
+}
 
   formData.append('model', selectedModel); // Add selected model to request
 
@@ -95,7 +95,10 @@ function App() {
   // Copy response text to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(responseText).then(() => {
-      alert('Text copied to clipboard!');
+      setCopied(true);
+
+      // Reset back to "Copy" after 2 seconds
+      setTimeout(() => setCopied(false), 2000);
     });
   };
 
@@ -135,6 +138,17 @@ function App() {
       alert('Failed to clear history. Please try again.');
     }
   };
+
+  const deleteHistoryItem = async (itemId) => {
+  try {
+    const res = await fetch(`http://localhost:5000/history/${itemId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error();
+    setHistory(history.filter(item => item.id !== itemId));
+  } catch {
+    alert('Failed to delete item. Please try again.');
+  }
+};
+
 
   const handleToggleDarkMode = (e) => {
     const button = e.currentTarget.getBoundingClientRect();
@@ -197,6 +211,10 @@ function App() {
         ></div>
       )}
 
+      {/* <div className="my-10">
+        <SectionSummary />
+      </div> */}
+
       {/* Sidebar */}
       <aside className={`bg-white dark:bg-gray-800 dark:text-gray-100 w-80 shadow-lg transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed top-0 left-0 h-full z-50`}>
         <div className="p-6 overflow-y-auto max-h-screen scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
@@ -218,33 +236,49 @@ function App() {
             <p>No summaries found in history.</p>
           ) : (
             <ul className="space-y-4">
-              {history.map((item, index) => (
-                <li
-                  key={index}
-                  className={`border dark:border-gray-700 p-4 rounded-lg ${selectedHistory === item ? 'bg-indigo-100 dark:bg-indigo-900' : 'bg-gray-50 dark:bg-gray-700'} hover:bg-indigo-100 dark:hover:bg-indigo-800 cursor-pointer transition-colors`}
-                  onClick={() => {
-                    setInputText(item.original_text);
-                    setResponseText(item.summary);
-                    setSelectedHistory(item);
-                    setCitationData(item.citations ? JSON.parse(item.citations) : []);
-                    setEntities(item.entities ? JSON.parse(item.entities) : []);
-                    setIsSidebarOpen(false);
-                  }}
-                >
-                  <strong>Original Text:</strong>{' '}
-                  <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2">
-                    {truncateText(item.original_text)}
-                  </span>
-                  <strong>Summary:</strong>{' '}
-                  <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2 mt-2">
-                    {truncateText(item.summary)}
-                  </span>
-                  <small className="block text-gray-500 dark:text-gray-400 mt-2">
-                    {new Date(item.timestamp).toLocaleString()}
-                  </small>
-                </li>
-              ))}
-            </ul>
+  {history.map((item, index) => (
+    <li
+      key={index}
+      className={`relative group border dark:border-gray-700 p-4 rounded-lg transition-colors cursor-pointer
+        ${selectedHistory === item ? 'bg-indigo-100 dark:bg-indigo-900' : 'bg-gray-50 dark:bg-gray-700'}
+        hover:bg-indigo-100 dark:hover:bg-indigo-800`}
+      onClick={() => {
+        setInputText(item.original_text);
+        setResponseText(item.summary);
+        setSelectedHistory(item);
+        setCitationData(item.citations ? JSON.parse(item.citations) : []);
+        setEntities(item.entities ? JSON.parse(item.entities) : []);
+        setIsSidebarOpen(false);
+      }}
+    >
+      {/* Delete Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent triggering the click on the history item
+          deleteHistoryItem(item.id);
+        }}
+        className="absolute top-2 right-4 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Delete"
+      >
+        &times;
+      </button>
+
+      {/* Content */}
+      <strong>Original Text:</strong>{' '}
+      <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2">
+        {truncateText(item.original_text)}
+      </span>
+      <strong>Summary:</strong>{' '}
+      <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2 mt-2">
+        {truncateText(item.summary)}
+      </span>
+      <small className="block text-gray-500 dark:text-gray-400 mt-2">
+        {new Date(item.timestamp).toLocaleString()}
+      </small>
+    </li>
+  ))}
+</ul>
+
           )}
         </div>
       </aside>
@@ -253,47 +287,72 @@ function App() {
       <div className="flex-grow p-8 mx-auto max-w-screen-sm pt-20 h-[calc(100vh-2rem)] ">
         <h1 className="text-2xl font-bold mb-6 text-center">Scientific Article Processor</h1>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Textarea */}
-          <div>
-            <label htmlFor="text" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-              Enter Article Text
-            </label>
-            <textarea
-              id="text"
-              value={inputText}
-              onChange={handleTextChange}
-              rows="5"
-              placeholder="Paste article text here..."
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
-            ></textarea>
-          </div>
+  {/* Textarea */}
+  <div>
+    <label htmlFor="text" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+      Enter Article Text
+    </label>
+    <textarea
+      id="text"
+      value={inputText}
+      onChange={handleTextChange}
+      rows="5"
+      placeholder="Paste article text here..."
+      disabled={!!file}  // Disable when file is uploaded
+      className={`mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm ${
+        file ? 'bg-gray-200 dark:bg-gray-700 cursor-not-allowed' : 'bg-white dark:bg-gray-800'
+      } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:focus:border-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800`}
+    ></textarea>
+  </div>
 
-          {/* File Upload */}
-          <div>
-            <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-              Or Upload a File (.docx, .pdf)
-            </label>
-            <input
-              type="file"
-              id="file"
-              name="file"
-              accept=".docx,.pdf"
-              onChange={handleFileUpload}
-              className="mt-1 block w-full text-sm text-gray-500 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 dark:file:bg-indigo-900 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-200 dark:hover:file:bg-indigo-800"
-            />
-          </div>
+  {/* File Upload */}
+  <div>
+    <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+      Or Upload a PDF File
+    </label>
+    <div className="flex items-center gap-4 mt-1">
+      <input
+        type="file"
+        id="file"
+        name="file"
+        accept=".pdf"
+        onChange={handleFileUpload}
+        disabled={loading}
+        ref={fileInputRef}
+        className="block flex-1 text-sm text-gray-500 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 dark:file:bg-indigo-900 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-200 dark:hover:file:bg-indigo-800"
+      />
+      {file && (
+        <button
+          type="button"
+          onClick={() => {
+      setFile(null);                // Clear state
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''; // Reset input
+      }
+    }}
+          className="text-sm text-red-600 dark:text-red-400 bg-transparent hover:underline"
+        >
+          Clear File
+        </button>
+      )}
+    </div>
+  </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            {loading ? 'Processing...' : 'Process Text'}
-          </button>
-        </form>
+  {/* Submit */}
+  <button
+    type="submit"
+    disabled={loading || (!inputText.trim() && !file)}
+    className={`w-full py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors
+      ${loading || (!inputText.trim() && !file)
+        ? 'bg-gray-400 '
+        : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+  >
+    {loading ? 'Processing...' : 'Summarize'}
+  </button>
+</form>
+
+
 
         {/* Response */}
         {responseText && (
@@ -304,13 +363,13 @@ function App() {
                 readOnly
                 value={responseText}
                 rows="5"
-                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
+                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
               ></textarea>
               <button
                 onClick={copyToClipboard}
                 className="absolute top-2 right-4 bg-indigo-600 text-white px-3 py-1 rounded-md text-sm opacity-50 hover:opacity-100 transition-opacity duration-300 "
               >
-                Copy 
+                {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
           </div>

@@ -41,7 +41,7 @@ class HistoryDB:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT original_text, summary, citations, entities, timestamp
+                SELECT id, original_text, summary, citations, entities, timestamp
                 FROM history
                 WHERE ip_address = ?
                 ORDER BY timestamp DESC
@@ -49,11 +49,12 @@ class HistoryDB:
             rows = cursor.fetchall()
             return [
                 {
-                    "original_text": row[0],
-                    "summary": row[1],
-                    "citations": row[2],
-                    "entities": row[3],
-                    "timestamp": row[4],
+                    "id": row[0],
+                    "original_text": row[1],
+                    "summary": row[2],
+                    "citations": row[3],
+                    "entities": row[4],
+                    "timestamp": row[5],
                 }
                 for row in rows
             ]
@@ -63,4 +64,13 @@ class HistoryDB:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM history WHERE ip_address = ?", (ip_address,))
+            conn.commit()
+
+    def delete_history_item(self, ip_address, item_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM history WHERE ip_address = ? AND id = ?",
+                (ip_address, item_id)
+            )
             conn.commit()

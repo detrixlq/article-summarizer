@@ -2,3 +2,4 @@
 /.vscode
 /backend/history.db
 /model
+/node_modules

@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  grobid:
+    image: lfoppiano/grobid:0.8.2 # Official Grobid Docker image
+    container_name: grobid
+    ports:
+      - "8070:8070" # Expose Grobid on port 8070
+    ulimits:
+      core: 0 
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "5000:5000" # Map backend to host port 5000
+    volumes:
+      - ./model:/app/model # Mount the model directory into the backend container
+    environment:
+      - MODEL_PATH=/app/model # Pass the model path as an environment variable
+    depends_on:
+      - db # If you have a database, uncomment this line
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:80" # Map frontend to host port 3000
+    depends_on:
+      - backend # Ensure the backend is up before starting the frontend
+    restart: always
+
+  # Optional: Add a database service if needed
+  # db:
+  #   image: postgres:13
+  #   container_name: db
+  #   environment:
+  #     POSTGRES_USER: user
+  #     POSTGRES_PASSWORD: password
+  #     POSTGRES_DB: mydb
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: always
+
+# Optional: Define volumes for persistent storage
+# volumes:
+#   postgres_data:

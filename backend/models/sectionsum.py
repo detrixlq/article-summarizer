@@ -5,7 +5,7 @@ import pdfplumber
 from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 from config import Config
 
-def load_local_summarizer(path=Config.SECTIONSUM_PATH):
+def load_local_summarizer(path=Config.MODEL_PATHS["Sectional Summarizer"]):
     tokenizer = AutoTokenizer.from_pretrained(path)
     model = AutoModelForSeq2SeqLM.from_pretrained(path)
     return pipeline("summarization", model=model, tokenizer=tokenizer)

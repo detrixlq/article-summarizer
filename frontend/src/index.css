@@ -16,3 +16,79 @@ code {
     monospace;
 }
 
+.dark-mode-transition {
+  transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
+}
+
+.citation-analysis .close-button {
+    display: none; /* Hide close button on mobile */
+  }
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .citation-analysis {
+    transform: translateX(100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .citation-analysis.open {
+    transform: translateX(0);
+  }
+
+  @media (max-width: 768px) {
+  .handle-button {
+    display: block; /* Show handle button on mobile */
+  }
+
+  .handle-button.hidden {
+    display: none; /* Hide handle button when sidebar is open */
+  }
+
+  .citation-analysis .close-button {
+    display: block; /* Hide close button on mobile */
+  }
+
+  
+}
+
+/* Handle Button Styles */
+.handle-button {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  background-color: #4f46e5; /* Indigo color */
+  width: 12px;
+  height: 48px;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  cursor: pointer;
+  display: none; /* Hidden by default */
+  z-index: 60;
+}
+
+.handle-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(90deg);
+  width: 16px;
+  height: 2px;
+  background-color: white;
+}
+
+.handle-button.open::before {
+  transform: translate(-50%, -50%) rotate(270deg); /* Rotate arrow when open */
+}
+
+/* Responsive Behavior */
+@media (max-width: 768px) {
+  .handle-button {
+    display: block; /* Show handle button on mobile */
+  }
+
+  
+}
+
+}

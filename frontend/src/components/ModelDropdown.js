@@ -15,7 +15,7 @@ export default function ModelDropdown({ selectedModel, setSelectedModel }) {
     <div className="relative inline-block text-left ml-5">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-md shadow-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+        className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-md shadow-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-300"
       >
         {selectedModel}
         <ChevronDown className="w-4 h-4" />

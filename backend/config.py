@@ -12,7 +12,7 @@ class Config:
     "Physics": "../model/model_physics",
     "Quantitative Biology": "../model/model_bio",
     "Quantitative Finance": "../model/model_finance",
-    "Statistics" : "../model/model_stat"
+    "Statistics" : "../model/model_stat",
+    "Sectional Summarizer": "../model/section_sum_model/t5-small-local",
 }
     NER_PATH = "../model/ner_model"
-    SECTIONSUM_PATH = "../model/section_sum_model/t5-small-local"

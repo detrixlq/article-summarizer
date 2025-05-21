@@ -176,7 +176,7 @@ def sectional_summary():
 
     # 🔹 Section Summaries
     section_summaries = generate_section_summaries(text, section_summarizer)
-
+    section_summaries_json = json.dumps(section_summaries)
     # 🔹 Citation Analysis
     citations = CitationAnalyzer.analyze_citations(text)
     citations_json = json.dumps(citations)
@@ -185,9 +185,8 @@ def sectional_summary():
     entities = ner_processor.extract_entities(text)
     entities_json = json.dumps(entities)
 
-    # 🔹 Save to DB (we save all section summaries concatenated as one string)
-    full_section_summary_text = "\n\n".join([f"{k}: {v}" for k, v in section_summaries.items()])
-    history_db.save_summary(ip_address, text, full_section_summary_text, citations_json, entities_json)
+
+    history_db.save_summary(ip_address, text, "", citations_json, entities_json, section_summaries_json)
 
     return jsonify({
         "section_summaries": section_summaries,

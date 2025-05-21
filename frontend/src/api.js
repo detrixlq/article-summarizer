@@ -14,8 +14,10 @@ export const summarizeText = async (formData, useSectional) => {
     }
 
     const result = await response.json();
-    if (useSectional)
-      return result.sectional_summary;
+    if (useSectional){
+      console.log('Sectional Summary:', result.section_summaries);
+      return result.section_summaries;
+    }   
     else
       return result.summary;
   } catch (error) {

@@ -1,123 +1,98 @@
-// App.js
-
 import React, { useState, useEffect, useRef } from 'react';
-import { summarizeText, getCitations, getHistory, extractEntities} from './api'; // Import API functions
+import { summarizeText, getCitations, getHistory, extractEntities } from './api';
 import { SunIcon, MoonIcon } from '@heroicons/react/24/solid';
-import ModelDropdown from "./components/ModelDropdown";
+import ModelDropdown from './components/ModelDropdown';
 
 function App() {
   const fileInputRef = useRef(null);
   const [inputText, setInputText] = useState('');
   const [file, setFile] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState({});
   const [responseText, setResponseText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State for sidebar visibility
-  const [history, setHistory] = useState([]); // State for storing history
-  const [selectedHistory, setSelectedHistory] = useState(null); // Tracks the selected history item
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [selectedHistory, setSelectedHistory] = useState(null);
   const [citationData, setCitationData] = useState(null);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [themeTarget, setThemeTarget] = useState(null);
   const [entities, setEntities] = useState([]);
   const [useSectional, setUseSectional] = useState(false);
   const [sectionSummary, setSectionSummary] = useState([]);
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('darkMode') === 'true';
-  });
-  const [selectedModel, setSelectedModel] = useState(
-  localStorage.getItem('selectedModel') || 'Computer Science'
-);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+  const [selectedModel, setSelectedModel] = useState(localStorage.getItem('selectedModel') || 'Computer Science');
+
+  // Persist selected model and dark mode in localStorage
+  useEffect(() => {
+    localStorage.setItem('selectedModel', selectedModel);
+  }, [selectedModel]);
 
   useEffect(() => {
-  localStorage.setItem('selectedModel', selectedModel);
-}, [selectedModel]);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('darkMode', darkMode); // <- Save preference
+    if (darkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
 
-  // Fetch history when the sidebar is opened
+  // Fetch history when sidebar opens
   useEffect(() => {
-    if (isSidebarOpen) {
-      fetchHistory();
-    }
+    if (isSidebarOpen) fetchHistory();
   }, [isSidebarOpen]);
 
-  // Handle text input change
-  const handleTextChange = (e) => {
-    setInputText(e.target.value);
-  };
+  const handleTextChange = (e) => setInputText(e.target.value);
 
-  // Handle file upload
-  const handleFileUpload = (e) => {
-    setFile(e.target.files[0]);
-  };
+  const handleFileUpload = (e) => setFile(e.target.files[0]);
 
-  // Submit form to process text or file
   const handleSubmit = async (e) => {
-  const start = performance.now();
-  e.preventDefault();
-  setLoading(true);
-  setCitationData(null); // Clear previous results
-  setEntities([]);
-  setResponseText(""); 
+    e.preventDefault();
+    setLoading(true);
+    setCitationData(null);
+    setEntities([]);
+    setResponseText('');
+    setSectionSummary([]);
 
-  const formData = new FormData();
-  if (file) {
-  formData.append("file", file);  // ✅ file takes priority
-} else {
-  formData.append("text", inputText.trim());
-}
+    const formData = new FormData();
+    if (file) formData.append('file', file);
+    else formData.append('text', inputText.trim());
+    formData.append('model', selectedModel);
 
-  formData.append('model', selectedModel); // Add selected model to request
+    try {
+      const [summary, citations] = await Promise.all([
+        useSectional ? summarizeText(formData, true) : summarizeText(formData, false),
+        getCitations(formData),
+      ]);
 
-  try {
-    const [summary, citations] = await Promise.all([
-      summarizeText(formData, useSectional),
-      getCitations(formData),
-    ]);
+      if (useSectional) {
+        const sectionArray = Object.values(summary);
+        setSectionSummary(sectionArray);
+        setResponseText('');
+      } else {
+        setResponseText(summary);
+        setSectionSummary([]);
+      }
 
-    
-    const end = performance.now();
+      setCitationData(citations);
+      const rawText = inputText.trim() || (await file.text());
+      setEntities(await extractEntities(rawText));
+    } catch (error) {
+      alert('An error occurred while processing the request. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    console.log(`Summary took ${Math.round(end - start)} ms`);
-    if (useSectional) {
-  setSectionSummary(summary);       // Save sectional summary
-  setResponseText("");              // Clear regular response
-} else {
-  setResponseText(summary);         // Regular summary
-  setSectionSummary(null);          // Clear sectional summary
-}
-
-    setCitationData(citations);
-
-    const rawText = inputText.trim() || (await file.text()); // Read file if necessary
-    const foundEntities = await extractEntities(rawText);
-    setEntities(foundEntities);
-  } catch (error) {
-    alert('An error occurred while processing the request. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-  // Copy response text to clipboard
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(responseText).then(() => {
-      setCopied(true);
-
-      // Reset back to "Copy" after 2 seconds
-      setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = (text, index = null) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied((prevCopied) => ({
+        ...prevCopied,
+        [index]: true,
+      }));
+      setTimeout(() => {
+        setCopied((prevCopied) => ({
+          ...prevCopied,
+          [index]: false,
+        }));
+      }, 2000);
     });
   };
 
-  // Fetch history from the backend
   const fetchHistory = async () => {
     try {
       const historyData = await getHistory();
@@ -127,25 +102,16 @@ function App() {
     }
   };
 
-  // Truncate text to the first sentence and add ellipsis
   const truncateText = (text) => {
     if (!text) return '';
-    const firstSentence = text.split(/[.!?]/)[0]; // Extract the first sentence
-    return `${firstSentence}...`; // Add ellipsis
+    const firstSentence = text.split(/[.!?]/)[0];
+    return `${firstSentence}...`;
   };
 
-  // Function to clear history
   const clearHistory = async () => {
     try {
-      const response = await fetch('http://localhost:5000/clear-history', {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      // Clear the history state locally
+      const response = await fetch('http://localhost:5000/clear-history', { method: 'DELETE' });
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
       setHistory([]);
       alert('History cleared successfully!');
     } catch (error) {
@@ -155,85 +121,51 @@ function App() {
   };
 
   const deleteHistoryItem = async (itemId) => {
-  try {
-    const res = await fetch(`http://localhost:5000/history/${itemId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error();
-    setHistory(history.filter(item => item.id !== itemId));
-  } catch {
-    alert('Failed to delete item. Please try again.');
-  }
-};
-
-
-  const handleToggleDarkMode = (e) => {
-    const button = e.currentTarget.getBoundingClientRect();
-    const center = {
-      x: button.left + button.width / 2,
-      y: button.top + button.height / 2,
-    };
-    setThemeTarget(center);
-    setIsTransitioning(true);
-
-    setTimeout(() => {
-      setDarkMode(!darkMode);
-    }, 50); // Slight delay before theme switch
-
-    setTimeout(() => {
-      setIsTransitioning(false);
-    }, 700); // Duration matches animation
+    try {
+      const res = await fetch(`http://localhost:5000/history/${itemId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setHistory((prevHistory) => prevHistory.filter((item) => item.id !== itemId));
+    } catch {
+      alert('Failed to delete item. Please try again.');
+    }
   };
 
-  function refreshPage() {
-    window.location.reload(false);
-  }
+  const handleToggleDarkMode = () => setDarkMode(!darkMode);
+
+  const refreshPage = () => window.location.reload(false);
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 dark:text-gray-100 transition-colors">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 dark:text-gray-100">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700 z-50 fixed top-0 left-0 w-full">
-        <div className="max-w-screen-xl ml-4 px-4 py-3 flex items-center ">
-          <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer" onClick={refreshPage}>Summarizer</h1>
-          
-          <ModelDropdown
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
-        />
-          <div className='float-right ml-auto'>
+      <header className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700 fixed top-0 left-0 w-full z-50">
+        <div className="max-w-screen-xl ml-4 px-4 py-3 flex items-center">
+          <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer" onClick={refreshPage}>
+            Summarizer
+          </h1>
+          <ModelDropdown selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
+          <div className="ml-auto">
             <button
-            onClick={handleToggleDarkMode}
-            className="relative w-10 h-10 flex items-center justify-center rounded-md bg-white dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors z-50"
-          >
-            <span className="absolute transition-all duration-500 transform scale-100 opacity-100 dark:scale-0 dark:opacity-0 rotate-0 dark:-rotate-90">
-              <SunIcon className="w-6 h-6 text-yellow-500" />
-            </span>
-            <span className="absolute transition-all duration-500 transform scale-0 opacity-0 dark:scale-100 dark:opacity-100 rotate-90 dark:rotate-0">
-              <MoonIcon className="w-6 h-6 text-indigo-300" />
-            </span>
-          </button>
+              onClick={handleToggleDarkMode}
+              className="relative w-10 h-10 flex items-center justify-center rounded-md bg-white dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <span className="absolute transition-all duration-500 transform scale-100 opacity-100 dark:scale-0 dark:opacity-0 rotate-0 dark:-rotate-90">
+                <SunIcon className="w-6 h-6 text-yellow-500" />
+              </span>
+              <span className="absolute transition-all duration-500 transform scale-0 opacity-0 dark:scale-100 dark:opacity-100 rotate-90 dark:rotate-0">
+                <MoonIcon className="w-6 h-6 text-indigo-300" />
+              </span>
+            </button>
           </div>
-          
         </div>
       </header>
 
-      {isTransitioning && (
-        <div
-          className={`fixed inset-0 z-40 pointer-events-none transition-transform duration-700 ease-in-out`}
-          style={{
-            clipPath: `circle(0% at ${themeTarget?.x}px ${themeTarget?.y}px)`,
-            backgroundColor: darkMode ? '#f9fafb' : '#111827',
-            animation: `${darkMode ? 'collapseToCenter' : 'expandFromCenter'} 0.7s ease-in-out forwards`,
-          }}
-        ></div>
-      )}
-
-      {/* <div className="my-10">
-        <SectionSummary />
-      </div> */}
-
       {/* Sidebar */}
-      <aside className={`bg-white dark:bg-gray-800 dark:text-gray-100 w-80 shadow-lg transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed top-0 left-0 h-full z-50`}>
+      <aside
+        className={`sidebar bg-white dark:bg-gray-800 dark:text-gray-100 w-80 shadow-lg transition-transform duration-300 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } fixed top-0 left-0 h-full z-50`}
+      >
         <div className="p-6 overflow-y-auto max-h-screen scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
-
           <button
             onClick={() => setIsSidebarOpen(false)}
             className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white float-right"
@@ -251,234 +183,229 @@ function App() {
             <p>No summaries found in history.</p>
           ) : (
             <ul className="space-y-4">
-  {history.map((item, index) => (
-    <li
-      key={index}
-      className={`relative group border dark:border-gray-700 p-4 rounded-lg transition-colors cursor-pointer
-        ${selectedHistory === item ? 'bg-indigo-100 dark:bg-indigo-900' : 'bg-gray-50 dark:bg-gray-700'}
-        hover:bg-indigo-100 dark:hover:bg-indigo-800`}
-      onClick={() => {
-        setInputText(item.original_text);
-        setResponseText(item.summary);
-        setSelectedHistory(item);
-        setCitationData(item.citations ? JSON.parse(item.citations) : []);
-        setEntities(item.entities ? JSON.parse(item.entities) : []);
-        setIsSidebarOpen(false);
-      }}
-    >
-      {/* Delete Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation(); // Prevent triggering the click on the history item
-          deleteHistoryItem(item.id);
-        }}
-        className="absolute top-2 right-4 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-        title="Delete"
-      >
-        &times;
-      </button>
-
-      {/* Content */}
-      <strong>Original Text:</strong>{' '}
-      <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2">
-        {truncateText(item.original_text)}
-      </span>
-      <strong>Summary:</strong>{' '}
-      <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2 mt-2">
-        {truncateText(item.summary)}
-      </span>
-      <small className="block text-gray-500 dark:text-gray-400 mt-2">
-        {new Date(item.timestamp).toLocaleString()}
-      </small>
-    </li>
-  ))}
-</ul>
-
+              {history.map((item, index) => (
+                <li
+                  key={index}
+                  className={`relative group border dark:border-gray-700 p-4 rounded-lg transition-colors cursor-pointer ${
+                    selectedHistory === item ? 'bg-indigo-100 dark:bg-indigo-900' : 'bg-gray-50 dark:bg-gray-700'
+                  } hover:bg-indigo-100 dark:hover:bg-indigo-800`}
+                  onClick={() => {
+                    setInputText(item.original_text);
+                    if (item.section_summaries) {
+                      setSectionSummary(Object.values(item.section_summaries));
+                      setResponseText('');
+                      setUseSectional(true);
+                    } else {
+                      setResponseText(item.summary);
+                      setSectionSummary([]);
+                      setUseSectional(false);
+                    }
+                    setSelectedHistory(item);
+                    setCitationData(item.citations ? JSON.parse(item.citations) : []);
+                    setEntities(item.entities ? JSON.parse(item.entities) : []);
+                    setIsSidebarOpen(false);
+                  }}
+                >
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteHistoryItem(item.id);
+                    }}
+                    className="absolute top-2 right-4 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Delete"
+                  >
+                    &times;
+                  </button>
+                  {/* Content */}
+                  <strong>Original Text:</strong>{' '}
+                  <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2">
+                    {truncateText(item.original_text)}
+                  </span>
+                  <strong>Summary:</strong>{' '}
+                  <span className="block text-sm text-gray-700 dark:text-gray-200 line-clamp-2 mt-2">
+                    {truncateText(item.summary)}
+                  </span>
+                  <small className="block text-gray-500 dark:text-gray-400 mt-2">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </small>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-grow p-8 mx-auto max-w-screen-sm pt-20 h-[calc(100vh-2rem)] ">
+      <div className="main-content flex-grow p-8 mx-auto max-w-screen-sm pt-20">
         <h1 className="text-2xl font-bold mb-6 text-center">Scientific Article Processor</h1>
-
         <form onSubmit={handleSubmit} className="space-y-4">
-  {/* Textarea */}
-  <div>
-    <label htmlFor="text" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-      Enter Article Text
-    </label>
-    <textarea
-      id="text"
-      value={inputText}
-      onChange={handleTextChange}
-      rows="5"
-      placeholder="Paste article text here..."
-      disabled={!!file}  // Disable when file is uploaded
-      className={`mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm ${
-        file ? 'bg-gray-200 dark:bg-gray-700 cursor-not-allowed' : 'bg-white dark:bg-gray-800'
-      } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:focus:border-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800`}
-    ></textarea>
-  </div>
-
-  {/* File Upload */}
-  <div>
-    <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-      Or Upload a PDF File
-    </label>
-    <div className="flex items-center gap-4 mt-1">
-      <input
-        type="file"
-        id="file"
-        name="file"
-        accept=".pdf"
-        onChange={handleFileUpload}
-        disabled={loading}
-        ref={fileInputRef}
-        className="block flex-1 text-sm text-gray-500 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 dark:file:bg-indigo-900 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-200 dark:hover:file:bg-indigo-800"
-      />
-      {file && (
-        <button
-          type="button"
-          onClick={() => {
-      setFile(null);                // Clear state
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''; // Reset input
-      }
-    }}
-          className="text-sm text-red-600 dark:text-red-400 bg-transparent hover:underline"
-        >
-          Clear File
-        </button>
-      )}
-    </div>
-  </div>
-
-{/* Toggle Sectional Summary */}
-<div className="flex items-center space-x-3">
-  <input
-    type="checkbox"
-    id="sectional"
-    checked={useSectional}
-    onChange={() => setUseSectional(!useSectional)}
-    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-  />
-  <label htmlFor="sectional" className="text-sm text-gray-700 dark:text-gray-200">
-    Use Sectional Summary
-  </label>
-</div>
-
-  {/* Submit */}
-  <button
-    type="submit"
-    disabled={loading || (!inputText.trim() && !file)}
-    className={`w-full py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors
-      ${loading || (!inputText.trim() && !file)
-        ? 'bg-gray-400 '
-        : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
-  >
-    {loading ? 'Processing...' : 'Summarize'}
-  </button>
-</form>
-
-
-
-        {/* Response */}
-{(responseText) && (
-  <div className="mt-6">
-    <h2 className="text-xl font-bold mb-2">Processed Text</h2>
-
-    {/* Regular Summary */}
-    {responseText && (
-      <div className="relative">
-        <textarea
-          readOnly
-          value={responseText}
-          rows="5"
-          className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
-        ></textarea>
-        <button
-          onClick={copyToClipboard}
-          className="absolute top-2 right-4 bg-indigo-600 text-white px-3 py-1 rounded-md text-sm opacity-50 hover:opacity-100 transition-opacity duration-300"
-        >
-          {copied ? 'Copied!' : 'Copy'}
-        </button>
-      </div>
-    )}
-
-    {/* Sectional Summary */}
-    {!responseText && (
-      <div className="space-y-4">
-        {sectionSummary.map((section, index) => (
-          <div key={index} className="border border-gray-300 dark:border-gray-700 rounded-md p-3 bg-white dark:bg-gray-800">
-            <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1">Section {index + 1}</h3>
-            <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-line">{section}</p>
+          {/* Textarea */}
+          <div>
+            <label htmlFor="text" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Enter Article Text
+            </label>
+            <textarea
+              id="text"
+              value={inputText}
+              onChange={handleTextChange}
+              rows="5"
+              placeholder="Paste article text here..."
+              disabled={!!file}
+              className={`mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm ${
+                file ? 'bg-gray-200 dark:bg-gray-700 cursor-not-allowed' : 'bg-white dark:bg-gray-800'
+              } text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800`}
+            ></textarea>
           </div>
-        ))}
+          {/* File Upload */}
+          <div>
+            <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Or Upload a PDF File
+            </label>
+            <div className="flex items-center gap-4 mt-1">
+              <input
+                type="file"
+                id="file"
+                name="file"
+                accept=".pdf"
+                onChange={handleFileUpload}
+                disabled={loading}
+                ref={fileInputRef}
+                className="block flex-1 text-sm text-gray-500 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 dark:file:bg-indigo-900 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-200 dark:hover:file:bg-indigo-800"
+              />
+              {file && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="text-sm text-red-600 dark:text-red-400 bg-transparent hover:underline"
+                >
+                  Clear File
+                </button>
+              )}
+            </div>
+          </div>
+          {/* Toggle Sectional Summary */}
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="sectional"
+              checked={useSectional}
+              onChange={() => setUseSectional(!useSectional)}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <label htmlFor="sectional" className="text-sm text-gray-700 dark:text-gray-200">
+              Use Sectional Summary
+            </label>
+          </div>
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading || (!inputText.trim() && !file)}
+            className={`w-full py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${
+              loading || (!inputText.trim() && !file) ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+            }`}
+          >
+            {loading ? 'Processing...' : 'Summarize'}
+          </button>
+        </form>
+        {/* Response */}
+        {(responseText || sectionSummary.length > 0) && (
+          <div className="response-section mt-6">
+            <h2 className="text-xl font-bold mb-2">Processed Text</h2>
+            {/* Regular Summary */}
+            {responseText && (
+              <div className="relative">
+                <textarea
+                  readOnly
+                  value={responseText}
+                  rows="5"
+                  className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
+                ></textarea>
+                <button
+                  onClick={() => copyToClipboard(responseText)}
+                  className="absolute top-2 right-4 bg-indigo-600 text-white px-3 py-1 rounded-md text-sm opacity-50 hover:opacity-100 transition-opacity duration-300"
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            )}
+            {/* Sectional Summary */}
+            {sectionSummary.length > 0 && (
+              <div className="space-y-4">
+                {sectionSummary.map((section, index) => (
+                  <div key={index} className="border border-gray-300 dark:border-gray-700 rounded-md p-3 bg-white dark:bg-gray-800 relative">
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1">Section {index + 1}</h3>
+                    <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-line">{section}</p>
+                    <button
+                      onClick={() => copyToClipboard(section, index)}
+                      className="absolute top-2 right-4 bg-indigo-600 text-white px-3 py-1 rounded-md text-sm opacity-50 hover:opacity-100 transition-opacity duration-300"
+                    >
+                      {copied[index] ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    )}
-  </div>
-)}
 
-      </div>
-
-      
-
-
+      {/* Citation Analysis */}
       {citationData && (
-  <aside
-    className="fixed top-14 right-0 h-[calc(100%-2rem)] w-80 bg-white dark:bg-gray-900 shadow-lg border-l border-gray-200 dark:border-gray-700 z-40 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
-  >
-    <h2 className="text-xl font-bold mb-4 text-indigo-600 dark:text-indigo-400">Citation Analysis</h2>
-    <div className="space-y-4 text-sm text-gray-800 dark:text-gray-200">
-      <div>
-        <p><span className="font-semibold">Total References:</span> {citationData.total_references}</p>
-        <p><span className="font-semibold">Total Author Citations:</span> {citationData.total_author_citations}</p>
-      </div>
-      <div>
-        <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top References</h3>
-        <ul className="list-disc list-inside space-y-1">
-          {citationData.references.slice(0, 5).map((ref, index) => (
-            <li key={index}>
-              <span className="text-gray-700 dark:text-gray-200">{ref.Reference}</span>{' '}
-              <span className="text-gray-500 dark:text-gray-400 text-xs">({ref.Frequency})</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top Author Citations</h3>
-        <ul className="list-disc list-inside space-y-1">
-          {citationData.author_citations.slice(0, 5).map((auth, index) => (
-            <li key={index}>
-              <span className="text-gray-700 dark:text-gray-200">{auth['Author Citation']}</span>{' '}
-              <span className="text-gray-500 dark:text-gray-400 text-xs">({auth.Frequency})</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* New Section: Extracted Key Terms */}
-      {entities && entities.length > 0 && (
-        <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
-          <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Key Terms</h3>
-          <ul className="flex flex-wrap gap-2 mb-3">
-            {entities.map((entity, index) => (
-              <li
-                key={index}
-                className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full text-xs text-gray-800 dark:text-gray-100"
-              >
-                {entity.term}{' '}
-                <span className="text-gray-500 dark:text-gray-400 text-[10px]">({entity.type})</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <aside
+          className="citation-analysis fixed top-14 right-0 h-[calc(100%-2rem)] w-80 bg-white dark:bg-gray-900 shadow-lg border-l border-gray-200 dark:border-gray-700 z-40 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
+        >
+          <h2 className="text-xl font-bold mb-4 text-indigo-600 dark:text-indigo-400">Citation Analysis</h2>
+          <div className="space-y-4 text-sm text-gray-800 dark:text-gray-200">
+            <div>
+              <p><span className="font-semibold">Total References:</span> {citationData.total_references}</p>
+              <p><span className="font-semibold">Total Author Citations:</span> {citationData.total_author_citations}</p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top References</h3>
+              <ul className="list-disc list-inside space-y-1">
+                {citationData.references.slice(0, 5).map((ref, index) => (
+                  <li key={index}>
+                    <span className="text-gray-700 dark:text-gray-200">{ref.Reference}</span>{' '}
+                    <span className="text-gray-500 dark:text-gray-400 text-xs">({ref.Frequency})</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Top Author Citations</h3>
+              <ul className="list-disc list-inside space-y-1">
+                {citationData.author_citations.slice(0, 5).map((auth, index) => (
+                  <li key={index}>
+                    <span className="text-gray-700 dark:text-gray-200">{auth['Author Citation']}</span>{' '}
+                    <span className="text-gray-500 dark:text-gray-400 text-xs">({auth.Frequency})</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Extracted Key Terms */}
+            {entities && entities.length > 0 && (
+              <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
+                <h3 className="font-semibold text-indigo-500 dark:text-indigo-300 mb-2">Key Terms</h3>
+                <ul className="flex flex-wrap gap-2 mb-3">
+                  {entities.map((entity, index) => (
+                    <li
+                      key={index}
+                      className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full text-xs text-gray-800 dark:text-gray-100"
+                    >
+                      {entity.term}{' '}
+                      <span className="text-gray-500 dark:text-gray-400 text-[10px]">({entity.type})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </aside>
       )}
-    </div>
-  </aside>
-)}
-
 
       {/* Sidebar Toggle */}
       <button

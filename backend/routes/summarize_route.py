@@ -3,7 +3,7 @@
 from flask import Blueprint, request, jsonify, g
 from models.summarizer import TextSummarizer
 import utils.citation_analyzer as CitationAnalyzer
-from utils.file_parser import PDFParser, DOCXParser
+from utils.file_parser import PDFParser
 from database.history_db import HistoryDB
 from config import Config
 from models.NERProcessor import NERProcessor
@@ -12,9 +12,19 @@ import json
 
 # Create a blueprint for the summarize route
 summarize_bp = Blueprint('summarize', __name__)
-
 # Initialize the summarizer and history database
 history_db = HistoryDB()
+
+print("[INIT] Loading base summarizer models...")
+
+loaded_summarizers = {
+    model_name: TextSummarizer(model_path)
+    for model_name, model_path in Config.MODEL_PATHS.items()
+}
+
+section_summarizer = load_local_summarizer()
+
+print("[INIT] All models loaded successfully.")
 
 @summarize_bp.route('/summarize', methods=['POST'])
 def summarize():
@@ -28,7 +38,10 @@ def summarize():
         return jsonify({"error": f"Model '{model_name}' not supported."}), 400
 
     print(f"[INFO] Using model: {model_name} ({model_path})")
-    summarizer = TextSummarizer(model_path)
+    summarizer = loaded_summarizers.get(model_name)
+    if not summarizer:
+        return jsonify({"error": f"Model '{model_name}' not supported."}), 400
+
 
     # Try to extract text from file first
     text = None
@@ -109,8 +122,6 @@ def citations():
         if file.filename.endswith('.pdf'):
             result = CitationAnalyzer.analyze_citations(file, is_pdf=True)
             return jsonify(result)
-        elif file.filename.endswith('.docx'):
-            text = DOCXParser.extract_text_from_docx(file)
         else:
             return jsonify({"error": "Unsupported file type"}), 400
 
@@ -149,7 +160,6 @@ def sectional_summary():
     print(f"[INFO] Using model: sectional summary model ({model_path})")
 
     # Load full summarizer and section summarizer
-    section_summarizer = load_local_summarizer()
 
     # Get text input or file
     text = request.form.get("text", None)

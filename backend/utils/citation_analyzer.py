@@ -59,18 +59,33 @@ def extract_text(input_data, is_pdf=False):
 
 # --- Citation Extraction ---
 
-def extract_citations(text):
-    # Find references like [9], [9, 15], [9-12], etc.
-    ref_pattern = r'\[\d+(?:[\-,;]\s*\d+)*\]'
-    
-    # Match author citations like "Sarlis et al. (2020)", "Smith and Jones (2015)"
-    author_pattern = r'[A-Z][a-zA-Z]+(?: et al\.| and [A-Z][a-zA-Z]+)? \(\d{4}\)'
 
-    refs = re.findall(ref_pattern, text)
-    authors = re.findall(author_pattern, text)
-    
-    logging.info(f"Found {len(refs)} numeric references and {len(authors)} author citations")
-    return refs, authors
+def extract_citations(text):
+    """
+    Extracts numeric and author-year style citations from a given text.
+
+    Returns:
+        tuple: (list of numeric refs, list of author-year refs)
+    """
+
+    # Improved pattern for numeric citations like:
+    # [1], [1, 2], [1–3], [1-3, 5], [1,2; 4-6]
+    ref_pattern = r'\[(?:\d+[–\-,;\s]*)+\]'
+
+    # Improved pattern for author citations like:
+    # "Smith et al. (2020)", "Brown and Green (2019)", "Taylor (2015)"
+    author_pattern = r'\b[A-Z][a-z]+(?:\s(?:et al\.|and\s[A-Z][a-z]+))?\s*\(\d{4}\)'
+
+    # Find matches
+    numeric_refs = re.findall(ref_pattern, text)
+    author_refs = re.findall(author_pattern, text)
+
+    # Clean and deduplicate
+    numeric_refs = list(set(ref.strip() for ref in numeric_refs))
+    author_refs = list(set(author.strip() for author in author_refs))
+
+    logging.info(f"Found {len(numeric_refs)} numeric references and {len(author_refs)} author citations")
+    return numeric_refs, author_refs
 
 
 # --- Bibliography Parsing ---

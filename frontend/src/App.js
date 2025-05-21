@@ -20,7 +20,7 @@ function App() {
   const [themeTarget, setThemeTarget] = useState(null);
   const [entities, setEntities] = useState([]);
   const [useSectional, setUseSectional] = useState(false);
-  const [sectionSummary, setSectionSummary] = useState(null);
+  const [sectionSummary, setSectionSummary] = useState([]);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('darkMode') === 'true';
   });
@@ -60,10 +60,12 @@ function App() {
 
   // Submit form to process text or file
   const handleSubmit = async (e) => {
+  const start = performance.now();
   e.preventDefault();
   setLoading(true);
   setCitationData(null); // Clear previous results
   setEntities([]);
+  setResponseText(""); 
 
   const formData = new FormData();
   if (file) {
@@ -81,14 +83,17 @@ function App() {
     ]);
 
     
+    const end = performance.now();
 
-    if (typeof summary === "string") {
-  setResponseText(summary);        // for regular summary
-  setSectionSummary(null);
-} else if (typeof summary === "object" && summary !== null) {
-  setSectionSummary(summary);  // for sectional summary
-  setResponseText("");
+    console.log(`Summary took ${Math.round(end - start)} ms`);
+    if (useSectional) {
+  setSectionSummary(summary);       // Save sectional summary
+  setResponseText("");              // Clear regular response
+} else {
+  setResponseText(summary);         // Regular summary
+  setSectionSummary(null);          // Clear sectional summary
 }
+
     setCitationData(citations);
 
     const rawText = inputText.trim() || (await file.text()); // Read file if necessary
@@ -379,37 +384,46 @@ function App() {
 
 
         {/* Response */}
-        {responseText && (
-          <div className="mt-6">
-            <h2 className="text-xl font-bold mb-2">Processed Text</h2>
-            <div className="relative">
-              <textarea
-                readOnly
-                value={responseText}
-                rows="5"
-                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
-              ></textarea>
-              <button
-                onClick={copyToClipboard}
-                className="absolute top-2 right-4 bg-indigo-600 text-white px-3 py-1 rounded-md text-sm opacity-50 hover:opacity-100 transition-opacity duration-300 "
-              >
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+{(responseText) && (
+  <div className="mt-6">
+    <h2 className="text-xl font-bold mb-2">Processed Text</h2>
 
-        {sectionSummary && (
-  <div className="space-y-4">
-    {Object.entries(sectionSummary).map(([section, content]) => (
-      <div key={section} className="p-4 border rounded bg-white shadow">
-        <h3 className="text-lg font-semibold mb-2">{section}</h3>
-        <p className="whitespace-pre-wrap">{content}</p>
+    {/* Regular Summary */}
+    {responseText && (
+      <div className="relative">
+        <textarea
+          readOnly
+          value={responseText}
+          rows="5"
+          className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-indigo-500 sm:text-sm resize-none scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
+        ></textarea>
+        <button
+          onClick={copyToClipboard}
+          className="absolute top-2 right-4 bg-indigo-600 text-white px-3 py-1 rounded-md text-sm opacity-50 hover:opacity-100 transition-opacity duration-300"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
       </div>
-    ))}
+    )}
+
+    {/* Sectional Summary */}
+    {!responseText && (
+      <div className="space-y-4">
+        {sectionSummary.map((section, index) => (
+          <div key={index} className="border border-gray-300 dark:border-gray-700 rounded-md p-3 bg-white dark:bg-gray-800">
+            <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1">Section {index + 1}</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-line">{section}</p>
+          </div>
+        ))}
+      </div>
+    )}
   </div>
 )}
+
+      </div>
+
+      
+
 
       {citationData && (
   <aside

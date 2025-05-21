@@ -14,7 +14,10 @@ export const summarizeText = async (formData, useSectional) => {
     }
 
     const result = await response.json();
-    return result.summary;
+    if (useSectional)
+      return result.sectional_summary;
+    else
+      return result.summary;
   } catch (error) {
     console.error('Error:', error);
     throw error; // Re-throw the error to handle it in the component

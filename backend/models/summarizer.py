@@ -1,9 +1,12 @@
 # models/summarizer.py
-
+import torch
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
 class TextSummarizer:
     def __init__(self, model_path):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"[INFO] TextSummarizer using device: {self.device}")
+
         self.tokenizer = T5Tokenizer.from_pretrained(model_path)
         self.model = T5ForConditionalGeneration.from_pretrained(model_path)
 

@@ -6,13 +6,13 @@ class Config:
     PORT = 5000
     MODEL_PATHS = {
     "Computer Science": "../model/model_cs",
-    "Economics": "..model/model_eco", 
+    "Economics": "../model/model_eco",  
     "Electrical Engineering": "../model/model_ee",
     "Mathematics": "../model/model_math",
     "Physics": "../model/model_physics",
     "Quantitative Biology": "../model/model_bio",
     "Quantitative Finance": "../model/model_finance",
-    "Statistics" : "../model/model_stat"
+    "Statistics" : "../model/model_stat",
+    "Sectional Summarizer": "../model/section_sum_model/t5-small-local",
 }
     NER_PATH = "../model/ner_model"
-    SECTIONSUM_PATH = "../model/section_sum_model/t5-small-local"

@@ -2,6 +2,7 @@
 
 import sqlite3
 from datetime import datetime
+import json
 
 class HistoryDB:
     def __init__(self, db_path="history.db"):
@@ -22,18 +23,19 @@ class HistoryDB:
                     summary TEXT NOT NULL,
                     citations TEXT,
                     entities TEXT,
+                    section_summaries TEXT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.commit()
 
-    def save_summary(self, ip_address, original_text, summary, citations=None, entities=None):
+    def save_summary(self, ip_address, original_text, summary, citations=None, entities=None, section_summaries=None):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO history (ip_address, original_text, summary, citations, entities, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (ip_address, original_text, summary, citations, entities, datetime.now()))
+                INSERT INTO history (ip_address, original_text, summary, citations, entities, section_summaries ,timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (ip_address, original_text, summary, citations, entities, section_summaries, datetime.now()))
             conn.commit()
 
 
@@ -41,23 +43,39 @@ class HistoryDB:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, original_text, summary, citations, entities, timestamp
+                SELECT id, original_text, summary, citations, entities, section_summaries, timestamp
                 FROM history
                 WHERE ip_address = ?
                 ORDER BY timestamp DESC
             """, (ip_address,))
             rows = cursor.fetchall()
-            return [
-                {
+
+            # Check if rows is empty
+            if not rows:
+                return []  # Return an empty list if no history entries are found
+
+            # Process each row
+            history_data = []
+            for row in rows:
+                try:
+                    # Deserialize the section_summaries column (JSON string)
+                    sections = json.loads(row[5])  # row[5] corresponds to section_summaries
+                except (TypeError, ValueError):
+                    # If deserialization fails, treat it as a regular summary (string)
+                    sections = row[5]
+
+                # Append the processed row as a dictionary
+                history_data.append({
                     "id": row[0],
                     "original_text": row[1],
                     "summary": row[2],
                     "citations": row[3],
                     "entities": row[4],
-                    "timestamp": row[5],
-                }
-                for row in rows
-            ]
+                    "section_summaries": sections,
+                    "timestamp": row[6],  # row[6] corresponds to timestamp
+                })
+
+            return history_data
 
         
     def clear_history(self, ip_address):

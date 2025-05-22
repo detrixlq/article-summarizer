@@ -1,0 +1,7 @@
+torch
+flask
+flask-cors
+transformers
+config
+requests
+bs4

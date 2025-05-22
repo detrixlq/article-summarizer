@@ -16,13 +16,13 @@ services:
       dockerfile: Dockerfile
     container_name: backend
     ports:
-      - "5000:5000" # Map backend to host port 5000
+      - "5000:5000"
     volumes:
-      - ./model:/app/model # Mount the model directory into the backend container
+      - ../model:/app/model # Mount the model directory
     environment:
-      - MODEL_PATH=/app/model # Pass the model path as an environment variable
+      - MODEL_BASE_PATH=/app/model # Set the base path for models
     depends_on:
-      - db # If you have a database, uncomment this line
+      - grobid
     restart: always
 
   frontend:

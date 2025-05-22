@@ -8,8 +8,8 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install dependencies
+RUN pip cache purge
 RUN pip install --no-cache-dir -r requirements.txt
-
 # Copy the rest of the application code
 COPY . .
 

@@ -1,7 +1,3 @@
-
-import re
-import requests
-import pdfplumber
 from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 from config import Config
 

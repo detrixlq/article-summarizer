@@ -8,8 +8,8 @@ class TextSummarizer:
         print(f"[INFO] TextSummarizer using device: {self.device}")
 
         # Load tokenizer and model
-        self.tokenizer = T5Tokenizer.from_pretrained(model_path)
-        self.model = T5ForConditionalGeneration.from_pretrained(model_path).to(self.device)
+        self.tokenizer = T5Tokenizer.from_pretrained(model_path, local_files_only=True)
+        self.model = T5ForConditionalGeneration.from_pretrained(model_path, local_files_only=True).to(self.device)
 
     def summarize(self, text, max_input_length=512, max_output_length=250, min_output_length=50):
         """
